@@ -15,22 +15,32 @@ const { Server } = require('socket.io');
 
 const port = 24441;
 
-const db = mysql.createConnection({
-  host: '127.0.0.1',
-  user: 'root',
-  password: '',
-  database: 'food'
-});
+// const db = mysql.createConnection({
+//   host: '127.0.0.1',
+//   user: 'root',
+//   password: '',
+//   database: 'food'
+// });
 
-console.log(server)
 
-db.connect((err) => {
-  if (err) {
-    console.error('Error connecting to MySQL: ' + err.stack);
-    return;
-  }
-  console.log('Connected to MySQL as id ' + db.threadId);
-});
+
+// const db = mysql.createConnection({
+//   host: '127.0.0.1',
+//   user: 'fastvgu_yassine',
+//   password: 'yassine6up',
+//   database: 'fastvgu_fast_path'
+// });
+
+
+// console.log(server)
+
+// db.connect((err) => {
+//   if (err) {
+//     console.error('Error connecting to MySQL: ' + err.stack);
+//     return;
+//   }
+//   console.log('Connected to MySQL as id ' + db.threadId);
+// });
 
 // Middleware
 app.use(bodyParser.json());
