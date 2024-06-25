@@ -17,7 +17,7 @@ const port = 3000;
 
 
 const db = mysql.createConnection({
-  host: 'fast-path.info',
+  host: '5.9.215.4',
   user: 'fastvgu_yassine',
   password: 'yassine6up',
   database: 'fastvgu_fast_path'
