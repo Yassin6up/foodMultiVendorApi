@@ -907,7 +907,7 @@ app.post("/rider/updateOnline", (req, res) => {
 
 
 
-
+console.log("not")
 // Start the server
 server.listen(port, () => {
   console.log(`Server is running on port ${port}`);
