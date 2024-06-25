@@ -17,7 +17,7 @@ const port = 3000;
 
 
 const db = mysql.createConnection({
-  host: 'fast-path.info:3306',
+  host: 'fast-path.info',
   user: 'fastvgu_yassine',
   password: 'yassine6up',
   database: 'fastvgu_fast_path'
@@ -138,23 +138,23 @@ const notifyClients = (order) => {
 // Monitor database for new orders
 let lastCheckedId = 0;
 
-const checkForNewOrders = () => {
-  db.query('SELECT * FROM orders WHERE id > ?', [lastCheckedId], (error, results) => {
-    if (error) {
-      console.error('Error querying database:', error);
-      return;
-    }
+// const checkForNewOrders = () => {
+//   db.query('SELECT * FROM orders WHERE id > ?', [lastCheckedId], (error, results) => {
+//     if (error) {
+//       console.error('Error querying database:', error);
+//       return;
+//     }
 
-    if (results.length > 0) {
-      results.forEach(order => {
-        notifyClients(order);
-        lastCheckedId = Math.max(lastCheckedId, order.id);
-      });
-    }
-  });
-};
+//     if (results.length > 0) {
+//       results.forEach(order => {
+//         notifyClients(order);
+//         lastCheckedId = Math.max(lastCheckedId, order.id);
+//       });
+//     }
+//   });
+// };
 
-setInterval(checkForNewOrders, 1000); // Check for new orders every second
+// setInterval(checkForNewOrders, 1000); // Check for new orders every second
 
 
 
