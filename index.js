@@ -1,20 +1,18 @@
+
+const crypto = require('crypto');
 const express = require('express');
 const bodyParser = require('body-parser');
 const mysql = require('mysql');
 const cors = require('cors');
 const http = require('http');
 const { calculateDistance } = require("./utils/calculateDistance"); // Assuming you have this utility function
-const crypto = require('crypto');
 const app = express();
 
 const server = http.createServer(app); // Create HTTP server from Express app
 
-
 const { Server } = require('socket.io');
 
-
 const port = 3000;
-
 
 const db = mysql.createConnection({
   host: '5.9.215.4',
@@ -36,33 +34,665 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cors({
   origin: '*', // Allow all origins, or specify your frontend URL here
- 
 }));
 
-const io = new Server(server , {
-        transports: ['websocket', 'polling'], // Ensure both transports are allowed
+const io = new Server(server, {
+  transports: ['websocket', 'polling'], // Ensure both transports are allowed
 });
 
-io.on('connection', (socket) => {
+
+const StoreSocket = io.of('/store')
+
+
+
+const riderSocket = io.of('/rider');
+
+StoreSocket.on('connection', (socket) => {
+  console.log('A client connected to StoreSocket');
+
+  // Emit riders' locations to the client
+  const sendRidersLocations = () => {
+ const query = `
+    SELECT id, latitude, longitude, car_type 
+    FROM riders
+    WHERE socket_id IS NOT NULL 
+    AND latitude IS NOT NULL AND latitude != '' 
+    AND longitude IS NOT NULL AND longitude != ''
+  `;
+    db.query(query, (err, results) => {
+      if (err) {
+        console.error('Error fetching riders locations:', err);
+        return;
+      }
+        socket.emit("ridersLocations" , results)
+    });
+  };
+
+  // Send initial data
+  sendRidersLocations();
+
+  // Send data periodically
+  const intervalId = setInterval(sendRidersLocations, 5000); // every 10 seconds
+
+
+
+  
+});
+
+
+// Dictionary to track rejected orders for each rider
+const rejectedOrders = {};
+
+// Function to emit new order event to all connected riders
+const emitNewOrder = () => {
+    
+          const fetchNewOrderQuery = `
+            SELECT * FROM orders 
+            WHERE orderStatus = "loading" 
+            AND riderId IS NULL 
+          `; 
+          
+          db.query(fetchNewOrderQuery, (err, orders) => {
+    if (err) {
+      console.error('Error fetching new order:', err);
+      riderSocket.emit('error', { message: 'Error fetching new order', error: err }); // Emit error to all clients
+      return;
+    }
+
+    if (orders.length > 0) {
+      const newOrder = orders[0];
+      const { storeLatitude, storeLongitude } = newOrder;
+
+      // Fetch riders with socket_id and their location
+      const fetchRidersQuery = 'SELECT id, socket_id, latitude, longitude FROM riders WHERE socket_id IS NOT NULL AND online = TRUE';
+      db.query(fetchRidersQuery, (err, riders) => {
+        if (err) {
+          console.error('Error fetching riders:', err);
+          riderSocket.emit('error', { message: 'Error fetching riders', error: err }); // Emit error to all clients
+          return;
+        }else{
+        riderSocket.emit('error', { message: 'rider is not founds'}); // Emit error to all clients
+        }
+
+        riders.forEach(rider => {
+          const distance = calculateDistance(storeLatitude, storeLongitude, rider.latitude, rider.longitude);
+
+          if (distance <= 5) { // Assuming the distance is in kilometers and 5km is the range
+            riderSocket.to(rider.socket_id).emit('newOrderAvailable', newOrder);
+            console.log(`Notified rider ${rider.id} about new order ${newOrder.id}`);
+          }else{
+             riderSocket.emit('error', { message: 'the order is not in range of any rider'}); // Emit error to all clients
+          }
+        });
+      });
+    }else{
+        io.emit('error', { message: 'order is not founds'}); // Emit error to all clients
+ 
+    }
+  });
+}
+
+
+
+
+
+
+// Socket.IO connection handling
+riderSocket.on('connection', (socket) => {
   console.log('Client connected', socket.id);
 
-  socket.on('disconnect', () => {
-    console.log('Client disconnected');
+  // Update rider's socket_id when they connect
+  socket.on('riderConnect', (riderId) => {
+
+ const query = 'UPDATE riders SET socket_id = ? WHERE id = ?';
+  db.query(query, [socket.id, riderId], (err, result) => {
+    if (err) {
+      console.error('Error updating socket_id:', err);
+        socket.emit('error' , err)
+    }
+    if (result.affectedRows === 0) {
+        socket.emit('error' , "Rider not found")
+    }
+    socket.emit("updateSocketId" , "socket updated") 
   });
 
+
+      // Initialize rejected orders list for this rider
+      if (!rejectedOrders[riderId]) {
+        rejectedOrders[riderId] = [];
+      }
+   
+      
+
+            
+
+      // Fetch rider details
+      const fetchRiderQuery = 'SELECT * FROM riders WHERE id = ?';
+      db.query(fetchRiderQuery, [riderId], (err, riders) => {
+        if (err) {
+          console.error('Error fetching rider:', err);
+          socket.emit('error', { message: 'Error fetching rider details', error: err });
+          return;
+        }
+
+        if (riders.length === 0) {
+          socket.emit('error', { message: 'Rider not found' });
+          return;
+        }
+
+        const rider = riders[0];
+        const riderLocation = { lat: parseFloat(rider.latitude), lng: parseFloat(rider.longitude) };
+        const riderCarType = rider.car_type;
+
+        // Function to fetch and assign order
+const fetchAndAssignOrder = () => {
+  // Check rider's online status and balance
+  const checkRiderStatusQuery = 'SELECT online, balance FROM riders WHERE id = ?';
+  db.query(checkRiderStatusQuery, [rider.id], (err, results) => {
+    if (err) {
+      console.error('Error checking rider status and balance:', err);
+      socket.emit('error', { message: 'Error checking rider status and balance', error: err });
+      return;
+    }
+
+    if (results.length === 0) {
+      socket.emit('error', { message: 'Rider not found' });
+      return;
+    }
+
+    const riderStatus = results[0];
+
+    if (riderStatus.online == false) {
+      riderSocket.to(rider.socket_id).emit('error', { message: 'Rider is not online' });
+      return;
+    }
+
+    if (riderStatus.balance <= 5) {
+      riderSocket.to(rider.socket_id).emit('error', { message: 'Rider\'s balance is too low' });
+      return;
+    }
+
+    // Fetch orders if the rider is online and has sufficient balance
+    const excludedOrderIds = rejectedOrders[rider.id].length > 0 ? rejectedOrders[rider.id].join(',') : '';
+    const fetchOrdersQuery = `
+      SELECT * FROM orders 
+      WHERE orderStatus = "loading" 
+      AND (riderId IS NULL OR riderId = ?)
+      ${excludedOrderIds ? `AND id NOT IN (${excludedOrderIds})` : ''}
+    `;
+    db.query(fetchOrdersQuery, [rider.id], (err, orders) => {
+      if (err) {
+        console.error('Error fetching orders:', err);
+        socket.emit('error', { message: 'Error fetching orders', error: err });
+        return;
+      }
+
+      if (orders.length === 0) {
+        return;
+      }
+
+      let closestOrder = null;
+      let minDistance = Infinity;
+
+      orders.forEach(order => {
+        const orderLocation = { lat: parseFloat(order.storeLatitude), lng: parseFloat(order.storeLongitude) };
+        const distance = calculateDistance(riderLocation, orderLocation);
+
+        if (order.carType) {
+          if (distance <= 5000 && order.carType === riderCarType && distance < minDistance) {
+            closestOrder = order;
+            minDistance = distance;
+          }
+        } else {
+          if (distance <= 5000 && (riderCarType === 'bike' || riderCarType === 'car') && distance < minDistance) {
+            closestOrder = order;
+            minDistance = distance;
+          }
+        }
+      });
+
+      if (closestOrder) {
+        // Mark rider as busy
+        const markRiderBusyQuery = 'UPDATE riders SET online = FALSE WHERE id = ?';
+        db.query(markRiderBusyQuery, [rider.id], (err) => {
+          if (err) {
+            console.error('Error marking rider as busy:', err);
+            socket.emit('error', { message: 'Error marking rider as busy', error: err });
+            return;
+          }
+
+          // Update the order with the riderId if it is currently null
+          const updateOrderRiderIdQuery = 'UPDATE orders SET riderId = ? WHERE id = ? AND riderId IS NULL';
+          db.query(updateOrderRiderIdQuery, [rider.id, closestOrder.id], (err) => {
+            if (err) {
+              console.error('Error updating order with riderId:', err);
+              socket.emit('error', { message: 'Error updating order with riderId', error: err });
+              return;
+            }
+
+            riderSocket.to(rider.socket_id).emit('newOrder', closestOrder);
+            console.log(`Notified rider ${rider.id} about new order ${closestOrder.id}`);
+          });
+        });
+      }
+    });
+  });
+};
+
+        // Initial fetch and assign order
+        fetchAndAssignOrder();
+        const asignOrders = setInterval(fetchAndAssignOrder , 16000)
+
+        // Listen for riderReady event to fetch new orders
+        socket.on('riderReady', () => {
+          // Mark rider as available
+          const markRiderAvailableQuery = 'UPDATE riders SET online = TRUE WHERE id = ?';
+          db.query(markRiderAvailableQuery, [rider.id], (err) => {
+            if (err) {
+              console.error('Error marking rider as available:', err);
+              socket.emit('error', { message: 'Error marking rider as available', error: err });
+              return;
+            }
+
+            // Fetch and assign new order
+            fetchAndAssignOrder();
+
+          });
+        });
+        
+        
+
+        // Handle order rejection
+        socket.on('rejectOrder', (orderId) => {
+          const queryReject = `
+            UPDATE orders 
+            SET riderId = NULL, orderStatus = "loading" 
+            WHERE id = ? AND riderId = ?
+          `;
+          db.query(queryReject, [orderId, rider.id], (err, result) => {
+            if (err) {
+              console.error('Error updating order with riderId:', err);
+              socket.emit('error', { message: 'Error updating order with riderId', error: err });
+              return;
+            }
+
+            if (result.affectedRows === 0) {
+              socket.emit('error', { message: 'Order not found or not assigned to this rider' });
+              return;
+            }
+
+            // Add orderId to rejected orders list for this rider
+            rejectedOrders[rider.id].push(orderId);
+
+            const decrementBalanceQuery = 'UPDATE riders SET balance = balance - 10 WHERE id = ?';
+            db.query(decrementBalanceQuery, [rider.id], (err) => {
+              if (err) {
+                console.error('Error decrementing rider balance:', err);
+                socket.emit('error', { message: 'Error decrementing rider balance', error: err });
+                return;
+              }
+
+              // Mark rider as available
+              const markRiderAvailableQuery = 'UPDATE riders SET online = TRUE WHERE id = ?';
+              db.query(markRiderAvailableQuery, [rider.id], (err) => {
+                if (err) {
+                  console.error('Error marking rider as available:', err);
+                  socket.emit('error', { message: 'Error marking rider as available', error: err });
+                  return;
+                }
+
+                socket.emit("rejected_order", { message: "The order has been rejected" });
+
+                // Fetch and assign new order
+                fetchAndAssignOrder();
+              });
+            });
+          });
+        });
+
+        // Listen for the newOrder event
+        socket.on('newOrder', () => {
+          emitNewOrder();
+        });
+
+        // Emit connected event with rider details
+        socket.emit('riderConnected', {
+          riderId: rider.id,
+          riderName: rider.name,
+          riderLocation: riderLocation
+        });
+      });
+
+  });
+  
+  
+  
+  
+  
+  
+  
+socket.on('locationUpdate', (location, id) => {
+    const riderId = id;
+    const { latitude, longitude } = location;
+
+    const query = `
+      INSERT INTO riders (id, latitude, longitude)
+      VALUES (?, ?, ?)
+      ON DUPLICATE KEY UPDATE latitude = VALUES(latitude), longitude = VALUES(longitude)
+    `;
+
+    db.query(query, [riderId, latitude, longitude], (err, results) => {
+      if (err) {
+        console.error('Error updating location:', err);
+        return;
+      }
+      socket.emit('locationUpdated' , location)
+      console.log(`Location updated for rider ${riderId}:`, location);
+    });
+  });
+ 
+ 
+  // Emit riders' locations to the client
+  const sendRidersLocations = () => {
+    const query = `
+      SELECT id, latitude, longitude , car_type FROM riders
+      WHERE socket_id IS NOT NULL
+    `;
+
+    db.query(query, (err, results) => {
+      if (err) {
+        console.error('Error fetching riders locations:', err);
+        return;
+      }
+      socket.emit('ridersLocations', results);
+        StoreSocket.emit("ridersLocations" , results)
+    });
+  };
+
+  // Send initial data
+  sendRidersLocations();
+
+  // Send data periodically
+  const intervalId = setInterval(sendRidersLocations, 5000); // every 10 seconds
+
+ 
+  // Emit riders' locations to the client
+  const sendStoresLocations = () => {
+          const sql = 'SELECT businessName, businessType, longitude, latitude FROM stores';
+                db.query(sql, (err, results) => {
+                    if (err) {
+                         socket.emit('error', { message: 'Error fetching stores details', error: err });
+                        return;
+                    }
+                    socket.emit("allStores" , results )
+                });
+  }
+
+
+sendStoresLocations()
+
+
+
+
+socket.on("updateOrder", (updateData) => {
+  const { orderId, updateState, riderId, carType, riderPhone, matricule, riderName , storeId } = updateData;
+
+  if (!updateState) {
+    return socket.emit("error_Accept", "the update state is not found");
+  }
+
+  if (updateState === "loading") {
+    const { riderIdAlt, carTypeAlt, riderPhoneAlt, matriculeAlt, riderNameAlt, riderLongAlt, riderLatAlt, risone } = updateData;
+
+    if (riderIdAlt && carTypeAlt && riderPhoneAlt && matriculeAlt && riderNameAlt) {
+      const updateQuery = `
+        UPDATE orders 
+        SET 
+          orderStatus = ?, 
+          riderId = ?, 
+          carType = ?, 
+          riderPhone = ?, 
+          matricule = ?, 
+          riderName = ?, 
+          riderIdAlt = ?, 
+          riderCarTypeAlt = ?, 
+          riderPhoneAlt = ?, 
+          riderMatriculeAlt = ?, 
+          riderNameAlt = ?, 
+          riderLongAlt = ?, 
+          riderLatAlt = ?, 
+          orderRejectedRaison = ? 
+        WHERE 
+          id = ?`;
+
+      const updateValues = [
+        updateState, riderId, carType, riderPhone, matricule, riderName,
+        riderIdAlt, carTypeAlt, riderPhoneAlt, matriculeAlt, riderNameAlt,
+        riderLongAlt, riderLatAlt, risone, orderId
+      ];
+
+      db.query(updateQuery, updateValues, (err, result) => {
+        if (err) {
+          console.error("Error updating order:", err);
+          return;
+        }
+
+        // Emit event to notify clients about order update
+        
+
+
+
+        if (updateState === "ACCEPTED") {
+          const query = 'UPDATE riders SET online = 0 WHERE id = ?';
+          db.query(query, [riderId], (err, results) => {
+            if (err) {
+              console.error('Error updating rider status:', err);
+            } else {
+              socket.emit("orderUpdated", { orderId, updateState, order: result });
+              console.log(`Rider ${riderId} status updated to offline`);
+            }
+          });
+          
+            let text = "لقد تم قبول الطلب رقم "+orderId
+            // SQL query to insert into notifications table
+              const sql = 'INSERT INTO notification (text, storeId) VALUES (?, ?)'
+              const values = [text, storeId]
+            
+              // Execute the query with the values from req.body
+              db.query(sql, values, (err, result) => {
+                if (err) {
+                  console.error('Error inserting notification:', err);
+                  return;
+                }
+            
+                // Return the ID of the inserted notification
+                StoreSocket.emit('new_notification', { id: result.insertId, text, storeId, isRead : false });
+              });
+        }
+        
+        
+        
+        if (updateState === "PECKED") {
+            let text = "لقد تم اخد الطلب رقم "+orderId
+            // SQL query to insert into notifications table
+              const sql = 'INSERT INTO notification (text, storeId) VALUES (?, ?)'
+              const values = [text, storeId]
+            
+              // Execute the query with the values from req.body
+              db.query(sql, values, (err, result) => {
+                if (err) {
+                  console.error('Error inserting notification:', err);
+                  return;
+                }
+            
+                // Return the ID of the inserted notification
+                StoreSocket.emit('new_notification', { id: result.insertId, text, storeId, isRead : false });
+              });
+        }
+        
+         if (updateState === "DELIVERED") {
+            let text = "تم توصيل طلب رقم "+orderId
+            // SQL query to insert into notifications table
+              const sql = 'INSERT INTO notification (text, storeId) VALUES (?, ?)'
+              const values = [text, storeId]
+            
+              // Execute the query with the values from req.body
+              db.query(sql, values, (err, result) => {
+                if (err) {
+                  console.error('Error inserting notification:', err);
+                  return;
+                }
+            
+                // Return the ID of the inserted notification
+                StoreSocket.emit('new_notification', { id: result.insertId, text, storeId, isRead : false });
+              });
+        }
+        
+        
+        
+        
+
+        if (updateState === "REJECTED") {
+          const query = 'UPDATE riders SET online = 1 WHERE id = ?';
+          db.query(query, [riderId], (err, results) => {
+            if (err) {
+              console.error('Error updating rider status:', err);
+            } else {
+              socket.emit("riderRejected", { orderId, updateState, order: result });
+              console.log(`Rider ${riderId} status updated to online`);
+            }
+          });
+        }
+      });
+    } else {
+      return socket.emit("error_Accept", "need to fill all inputs");
+    }
+  } else {
+    const updateQuery = `
+      UPDATE orders 
+      SET 
+        orderStatus = ?, 
+        riderId = ?, 
+        carType = ?, 
+        riderPhone = ?, 
+        matricule = ?, 
+        riderName = ? 
+      WHERE 
+        id = ?`;
+
+    const updateValues = [updateState, riderId, carType, riderPhone, matricule, riderName, orderId];
+
+    db.query(updateQuery, updateValues, (err, result) => {
+      if (err) {
+        console.error("Error updating order:", err);
+        return;
+      }
+
+      
+
+        if (updateState === "ACCEPTED") {
+          const query = 'UPDATE riders SET online = 0 WHERE id = ?';
+          db.query(query, [riderId], (err, results) => {
+            if (err) {
+              console.error('Error updating rider status:', err);
+            } else {
+              socket.emit("orderUpdated", { orderId, updateState, order: result });
+              console.log(`Rider ${riderId} status updated to offline`);
+            }
+          });
+          
+            let text = "لقد تم قبول الطلب رقم "+orderId
+            // SQL query to insert into notifications table
+              const sql = 'INSERT INTO notification (text, storeId) VALUES (?, ?)'
+              const values = [text, storeId]
+            
+              // Execute the query with the values from req.body
+              db.query(sql, values, (err, result) => {
+                if (err) {
+                  console.error('Error inserting notification:', err);
+                  return;
+                }
+            
+                // Return the ID of the inserted notification
+                StoreSocket.emit('new_notification', { id: result.insertId, text, storeId, isRead : false });
+              });
+        }
+        
+        
+        
+        if (updateState === "PECKED") {
+            let text = "لقد تم اخد الطلب رقم "+orderId
+            // SQL query to insert into notifications table
+              const sql = 'INSERT INTO notification (text, storeId) VALUES (?, ?)'
+              const values = [text, storeId]
+            
+              // Execute the query with the values from req.body
+              db.query(sql, values, (err, result) => {
+                if (err) {
+                  console.error('Error inserting notification:', err);
+                  return;
+                }
+            
+                // Return the ID of the inserted notification
+                StoreSocket.emit('new_notification', { id: result.insertId, text, storeId, isRead : false });
+              });
+        }
+        
+         if (updateState === "DELIVERED") {
+            let text = "تم توصيل طلب رقم "+orderId
+            // SQL query to insert into notifications table
+              const sql = 'INSERT INTO notification (text, storeId) VALUES (?, ?)'
+              const values = [text, storeId]
+            
+              // Execute the query with the values from req.body
+              db.query(sql, values, (err, result) => {
+                if (err) {
+                  console.error('Error inserting notification:', err);
+                  return;
+                }
+            
+                // Return the ID of the inserted notification
+                StoreSocket.emit('new_notification', { id: result.insertId, text, storeId, isRead : false });
+              });
+        }
+        
+        
+      
+      
+      socket.emit("orderUpdated", { orderId, updateState, order: result });
+    });
+  }
+});
+
+  
+
+  // Handle client disconnect
+  socket.on('disconnect', () => {
+    console.log('Client disconnected', socket.id);
+    // Emit disconnected event to handle clean-up if needed
+    //  const query = 'UPDATE riders SET socket_id = ? WHERE id = ?';
+    //       db.query(query, [null, riderId], (err, result) => {
+    //         if (err) {
+    //           console.error('Error updating socket_id:', err);
+    //             socket.on('error' , err)
+    //         }
+    //         if (result.affectedRows === 0) {
+    //             socket.on('error' , "Rider not found")
+    //         }
+    //         socket.emit("updateSocketId" , "socket updated") 
+    //       });
+
+
+    // io.emit('clientDisconnected', socket.id);
+  })
+
+  // Handle errors
   socket.on('error', (error) => {
     console.error('Socket.IO error:', error);
-    socket.emit('error', { message: 'Socket.IO server error: ' + error.message });
+    socket.emit('error', { message: 'Socket.IO server error', error: error });
   });
+})
 
-
-  socket.on('connect_timeout', (timeout) => {
-    console.error('Connection timeout:', timeout);
-    socket.emit('error', { message: 'Connection timeout: ' + timeout });
-  });
-
-
-});
 
 
 
@@ -74,69 +704,65 @@ app.get("/", (req, res) => {
 });
 
 // Orders endpoint
-app.get("/orders/rider/get", (req, res) => {
-  const { id } = req.query;
-  if (!id) {
-    return res.status(401).json({ message: "No rider Id found" });
-  }
+// app.get("/orders/rider/get", (req, res) => {
+//   const { id } = req.query;
+//   if (!id) {
+//     return res.status(401).json({ message: "No rider Id found" });
+//   }
 
-  const query = "SELECT * FROM riders WHERE id = ?";
-  db.query(query, [id], (err, results) => {
-    if (err) {
-      console.error("Error querying database:", err);
-      return res.status(500).json({ message: "Internal server error" });
-    }
+//   const query = "SELECT * FROM riders WHERE id = ?";
+//   db.query(query, [id], (err, results) => {
+//     if (err) {
+//       console.error("Error querying database:", err);
+//       return res.status(500).json({ message: "Internal server error" });
+//     }
 
-    if (results.length === 0) {
-      return res.status(404).json({ message: "Rider not found" });
-    }
+//     if (results.length === 0) {
+//       return res.status(404).json({ message: "Rider not found" });
+//     }
 
-    const rider = results[0];
-    const riderLocation = { lat: parseFloat(rider.latitude), lng: parseFloat(rider.longitude) };
+//     const rider = results[0];
+//     const riderLocation = { lat: parseFloat(rider.latitude), lng: parseFloat(rider.longitude) };
 
-    const query2 = "SELECT * FROM orders";
-    db.query(query2, (err, results) => {
-      if (err) {
-        console.error("Error querying database:", err);
-        return res.status(500).json({ message: "Internal server error" });
-      }
+//     const query2 = "SELECT * FROM orders";
+//     db.query(query2, (err, results) => {
+//       if (err) {
+//         console.error("Error querying database:", err);
+//         return res.status(500).json({ message: "Internal server error" });
+//       }
 
-      if (results.length === 0) {
-        return res.status(404).json({ message: "Orders not found" });
-      }
+//       if (results.length === 0) {
+//         return res.status(404).json({ message: "Orders not found" });
+//       }
 
-      const ordersInMyArea = results.filter(order => {
-        const orderLocation = { lat: parseFloat(order.storeLatitude), lng: parseFloat(order.storeLongitude) };
-        const distance = calculateDistance(riderLocation, orderLocation);
-        if (order.carType) {
-          return distance <= 5000 && order.carType === rider.car_type;
-        } else {
-          return distance <= 5000 && (rider.car_type === 'bike' || rider.car_type === 'car');
-        }
-      });
+//       const ordersInMyArea = results.filter(order => {
+//         const orderLocation = { lat: parseFloat(order.storeLatitude), lng: parseFloat(order.storeLongitude) };
+//         const distance = calculateDistance(riderLocation, orderLocation);
+//         if (order.carType) {
+//           return distance <= 5000 && order.carType === rider.car_type;
+//         } else {
+//           return distance <= 5000 && (rider.car_type === 'bike' || rider.car_type === 'car');
+//         }
+//       });
 
-      const myOrders = results.filter(order => order.riderId === rider.id);
-      const loadingOrders = ordersInMyArea.filter(order => order.orderStatus === "loading");
+//       const myOrders = results.filter(order => order.riderId === rider.id);
+//       const loadingOrders = ordersInMyArea.filter(order => order.orderStatus === "loading");
 
-      console.log("otherOrders", loadingOrders);
-      console.log("my order", myOrders);
+//       console.log("otherOrders", loadingOrders);
+//       console.log("my order", myOrders);
 
-      if (loadingOrders.length === 0) {
-        return res.status(404).json({ message: "No loading orders found in the specified area", myOrders: myOrders.reverse(), orders: [], ordersInMyArea: ordersInMyArea });
-      }
+//       if (loadingOrders.length === 0) {
+//         return res.status(404).json({ message: "No loading orders found in the specified area", myOrders: myOrders.reverse(), orders: [], ordersInMyArea: ordersInMyArea });
+//       }
 
-      res.status(200).json({ message: "Loading orders found in the specified area", orders: loadingOrders.reverse(), myOrders: myOrders.reverse() });
-    });
-  });
-});
+//       res.status(200).json({ message: "Loading orders found in the specified area", orders: loadingOrders.reverse(), myOrders: myOrders.reverse() });
+//     });
+//   });
+// });
 
-// Function to notify clients of a new order
-const notifyClients = (order) => {
-  io.emit('newOrder', order);
-};
+
 
 // Monitor database for new orders
-let lastCheckedId = 0;
 
 // const checkForNewOrders = () => {
 //   db.query('SELECT * FROM orders WHERE id > ?', [lastCheckedId], (error, results) => {
@@ -476,7 +1102,7 @@ app.post("/order/update", (req, res) => {
         
         if(riderIdAlt&& carTypeAlt &&  riderPhoneAlt &&  matriculeAlt&& riderNameAlt){
             
-           const updateQuery = "UPDATE orders SET orderStatus = ?, riderId = ?, carType = ?, riderPhone = ?, matricule = ?, riderName = ?, riderIdAlt = ?, riderCarTypeAlt = ?, riderPhoneAlt = ?, riderMatriculeAlt = ?, riderNameAlt = ?, riderLongAlt = ?, riderLatAlt = ?, orderRejectedRaison = ? WHERE id = ?";
+          const updateQuery = "UPDATE orders SET orderStatus = ?, riderId = ?, carType = ?, riderPhone = ?, matricule = ?, riderName = ?, riderIdAlt = ?, riderCarTypeAlt = ?, riderPhoneAlt = ?, riderMatriculeAlt = ?, riderNameAlt = ?, riderLongAlt = ?, riderLatAlt = ?, orderRejectedRaison = ? WHERE id = ?";
             const updateValues = [updateState, riderId, carType, riderPhone, matricule, riderName, riderIdAlt, carTypeAlt, riderPhoneAlt, matriculeAlt, riderNameAlt, riderLongAlt, riderLatAlt, risone, orderId];
             
             db.query(updateQuery, updateValues, (err, result) => {
@@ -486,15 +1112,10 @@ app.post("/order/update", (req, res) => {
               }
               return res.status(200).json({ message: "تم التعديل", order: result });
             });
-
-            
-            
         }else{
             return res.status(400).json({message : "you need to fill the variables"})
         }
-
   }else{
-      
   const updateQuery = "UPDATE orders SET orderStatus = ?, riderId = ?, carType = ?, riderPhone = ?, matricule = ?, riderName = ? WHERE id = ?";
   const updateValues = [updateState, riderId, carType, riderPhone, matricule, riderName, orderId];
 
@@ -505,11 +1126,13 @@ app.post("/order/update", (req, res) => {
     }
     return res.status(200).json({ message: "تم التعديل", order: result[0] });
   });
- 
   }
-  
-  
-});
+})
+
+
+
+
+
 
 app.post("/order/updateComment", (req, res) => {
   const {orderId } = req.query;
@@ -533,6 +1156,7 @@ app.post("/order/updateComment", (req, res) => {
 
 
 
+
 app.post("/order/add", (req, res) => {
   let {
     storeId,
@@ -547,7 +1171,7 @@ app.post("/order/add", (req, res) => {
     customerLng,
     customerLat,
     customerAddress,
-    storeName ,
+    storeName,
     storeNumber
   } = req.body;
 
@@ -563,7 +1187,7 @@ app.post("/order/add", (req, res) => {
       if (results.length === 0) {
         return res.status(404).json({ message: "Store not found" });
       }
-      
+
       const store = results[0];
       const insertQuery = `
         INSERT INTO orders (
@@ -606,6 +1230,13 @@ app.post("/order/add", (req, res) => {
         if (error) {
           return res.status(500).send({ error: 'Database error: ' + error });
         }
+
+        // Emitting the new order event to clients connected to StoreSocket
+        StoreSocket.emit('newOrder', {
+          message: 'تمت اضافة الطلب بنجاح',
+          riderId: results.insertId
+        });
+
         res.status(201).send({
           message: 'تمت اضافة الطلب بنجاح',
           riderId: results.insertId
@@ -654,6 +1285,13 @@ app.post("/order/add", (req, res) => {
       if (error) {
         return res.status(500).send({ error: 'Database error: ' + error });
       }
+
+      // Emitting the new order event to clients connected to StoreSocket
+      StoreSocket.emit('newOrder', {
+        message: 'تمت اضافة الطلب بنجاح',
+        riderId: results.insertId
+      });
+
       res.status(201).send({
         message: 'تمت اضافة الطلب بنجاح',
         riderId: results.insertId
@@ -661,7 +1299,6 @@ app.post("/order/add", (req, res) => {
     });
   }
 });
-
 
 
 
@@ -714,6 +1351,29 @@ app.post("/notification/add" , (req , res)=>{
   });
 })
 
+app.post('/notification/update', (req, res) => {
+  const notificationId = req.query.updateId;
+
+  // SQL query to update isRead to true
+  const sql = 'UPDATE notification SET isRead = 1 WHERE id = ?';
+
+  // Execute the query with the notificationId parameter
+  db.query(sql, [notificationId], (err, results) => {
+    if (err) {
+      console.error('Error updating notification:', err);
+      res.status(500).json({ error: 'Failed to update notification' });
+      return;
+    }
+
+    // Check if update was successful
+    if (results.affectedRows > 0) {
+      res.json({ message: `Notification ${notificationId} updated successfully` });
+    } else {
+      res.status(404).json({ error: `Notification ${notificationId} not found` });
+    }
+  });
+  
+});
 
 
 
@@ -912,4 +1572,3 @@ console.log("not")
 server.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
-
