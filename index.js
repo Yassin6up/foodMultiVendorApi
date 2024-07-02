@@ -703,6 +703,24 @@ app.get("/", (req, res) => {
   res.send('hello world');
 });
 
+app.get('/settings/socket-ip', (req, res) => {
+  const query = 'SELECT socketIp FROM settings LIMIT 1';
+
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error executing query:', err);
+      return res.status(500).send('Server error');
+    }
+
+    if (results.length > 0) {
+      res.json({ socketIp: results[0].socketIp });
+    } else {
+      res.status(404).send('socketIp not found');
+    }
+  });
+});
+
+
 // Orders endpoint
 // app.get("/orders/rider/get", (req, res) => {
 //   const { id } = req.query;
