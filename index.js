@@ -203,15 +203,15 @@ const fetchAndAssignOrder = () => {
 
     const riderStatus = results[0];
 
-    // if (riderStatus.online == false) {
-    //   riderSocket.to(rider.socket_id).emit('error', { message: 'Rider is not online' });
-    //   return;
-    // }
+    if (riderStatus.online == false) {
+      riderSocket.to(rider.socket_id).emit('error', { message: 'Rider is not online' });
+      return;
+    }
 
-    // if (riderStatus.balance <= 5) {
-    //   riderSocket.to(rider.socket_id).emit('error', { message: 'Rider\'s balance is too low' });
-    //   return;
-    // }
+    if (riderStatus.balance <= 5) {
+      riderSocket.to(rider.socket_id).emit('error', { message: 'Rider\'s balance is too low' });
+      return;
+    }
 
     // Fetch orders if the rider is online and has sufficient balance
     const excludedOrderIds = rejectedOrders[rider.id].length > 0 ? rejectedOrders[rider.id].join(',') : '';
@@ -437,7 +437,7 @@ sendStoresLocations()
 
 socket.on("updateOrder", (updateData) => {
   const { orderId, updateState, riderId, carType, riderPhone, matricule, riderName , storeId } = updateData;
-
+  console.log("update data recived in backend  :" updateData)
   if (!updateState) {
     return socket.emit("error_Accept", "the update state is not found");
   }
