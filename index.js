@@ -73,7 +73,7 @@ StoreSocket.on('connection', (socket) => {
   sendRidersLocations();
 
   // Send data periodically
-  const intervalId = setInterval(sendRidersLocations, 5000); // every 10 seconds
+  const intervalId = setInterval(sendRidersLocations, 10000); // every 10 seconds
 
 
 
