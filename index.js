@@ -188,7 +188,7 @@ riderSocket.on('connection', (socket) => {
         // Function to fetch and assign order
 const fetchAndAssignOrder = () => {
   // Check rider's online status and balance
-  const checkRiderStatusQuery = 'SELECT online, balance FROM riders WHERE id = ?';
+  const checkRiderStatusQuery = 'SELECT online,  FROM riders WHERE id = ?';
   db.query(checkRiderStatusQuery, [rider.id], (err, results) => {
     if (err) {
       console.error('Error checking rider status and balance:', err);
@@ -215,13 +215,15 @@ const fetchAndAssignOrder = () => {
 
     // Fetch orders if the rider is online and has sufficient balance
     const excludedOrderIds = rejectedOrders[rider.id].length > 0 ? rejectedOrders[rider.id].join(',') : '';
-    const fetchOrdersQuery = `
-      SELECT * FROM orders 
-      WHERE orderStatus = "loading" 
-      AND (riderId IS NULL OR riderId = ?)
-      ${excludedOrderIds ? `AND id NOT IN (${excludedOrderIds})` : ''}
+      const fetchOrdersQuery = `
+        SELECT * FROM orders 
+        WHERE orderStatus = "loading" 
+        AND (riderId IS NULL OR riderId = ?)
+        AND riderIdAlt != ?
+        ${excludedOrderIds ? `AND id NOT IN (${excludedOrderIds})` : ''}
     `;
-    db.query(fetchOrdersQuery, [rider.id], (err, orders) => {
+
+    db.query(fetchOrdersQuery, [rider.id , rider.id], (err, orders) => {
       if (err) {
         console.error('Error fetching orders:', err);
         socket.emit('error', { message: 'Error fetching orders', error: err });
