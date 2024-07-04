@@ -421,7 +421,7 @@ socket.on('locationUpdate', (location, id) => {
  
   // Emit riders' locations to the client
   const sendStoresLocations = () => {
-          const sql = 'SELECT businessName, businessType, longitude, latitude FROM stores';
+          const sql = 'SELECT businessName, businessType, totalOrders ,longitude, latitude FROM stores';
                 db.query(sql, (err, results) => {
                     if (err) {
                          socket.emit('error', { message: 'Error fetching stores details', error: err });
