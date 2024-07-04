@@ -144,7 +144,7 @@ riderSocket.on('connection', (socket) => {
 
   // Update rider's socket_id when they connect
   socket.on('riderConnect', (riderId) => {
-
+  console.log("rider connected" , riderId)
  const query = 'UPDATE riders SET socket_id = ? WHERE id = ?';
   db.query(query, [socket.id, riderId], (err, result) => {
     if (err) {
