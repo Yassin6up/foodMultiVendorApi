@@ -215,13 +215,13 @@ const fetchAndAssignOrder = () => {
 
     // Fetch orders if the rider is online and has sufficient balance
     const excludedOrderIds = rejectedOrders[rider.id].length > 0 ? rejectedOrders[rider.id].join(',') : '';
-      const fetchOrdersQuery = `
-        SELECT * FROM orders 
-        WHERE orderStatus = "loading" 
-        AND (riderId IS NULL OR riderId = ?)
-        AND riderIdAlt != ?
-        ${excludedOrderIds ? `AND id NOT IN (${excludedOrderIds})` : ''}
-    `;
+   const fetchOrdersQuery = `
+    SELECT * FROM orders 
+    WHERE orderStatus = "loading" 
+    AND (riderId IS NULL OR riderId = ?)
+    AND riderIdAlt != ?
+    ${excludedOrderIds && excludedOrderIds.length ? `AND id NOT IN (${excludedOrderIds.join(',')})` : ''}
+`;
 
     db.query(fetchOrdersQuery, [rider.id , rider.id], (err, orders) => {
       if (err) {
