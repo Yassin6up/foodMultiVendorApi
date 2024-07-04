@@ -219,7 +219,6 @@ const fetchAndAssignOrder = () => {
     SELECT * FROM orders 
     WHERE orderStatus = "loading" 
     AND (riderId IS NULL OR riderId = ?)
-    AND riderIdAlt != ?
     ${excludedOrderIds && excludedOrderIds.length ? `AND id NOT IN (${excludedOrderIds.join(',')})` : ''}
 `;
 
