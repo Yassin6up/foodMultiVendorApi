@@ -188,7 +188,7 @@ riderSocket.on('connection', (socket) => {
         // Function to fetch and assign order
 const fetchAndAssignOrder = () => {
   // Check rider's online status and balance
-  const checkRiderStatusQuery = 'SELECT online,  FROM riders WHERE id = ?';
+  const checkRiderStatusQuery = 'SELECT online, balance FROM riders WHERE id = ?';
   db.query(checkRiderStatusQuery, [rider.id], (err, results) => {
     if (err) {
       console.error('Error checking rider status and balance:', err);
