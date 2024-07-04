@@ -703,8 +703,8 @@ db.query(updateQuery, updateValues, (err, result) => {
   socket.on('disconnect', () => {
     console.log('Client disconnected', socket.id);
     // Emit disconnected event to handle clean-up if needed
-     const query = 'UPDATE riders SET socket_id = ? WHERE id = ?';
-          db.query(query, [null, riderId], (err, result) => {
+     const query = 'UPDATE riders SET socket_id = ? WHERE socket_id = ?';
+          db.query(query, [null, socket.id], (err, result) => {
             if (err) {
               console.error('Error updating socket_id:', err);
                 socket.on('error' , err)
