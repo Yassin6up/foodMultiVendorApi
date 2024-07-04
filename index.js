@@ -437,7 +437,7 @@ sendStoresLocations()
 
 socket.on("updateOrder", (updateData) => {
   const { orderId, updateState, riderId, carType, riderPhone, matricule, riderName , storeId } = updateData;
-  console.log("update data recived in backend  :" updateData)
+ 
   if (!updateState) {
     return socket.emit("error_Accept", "the update state is not found");
   }
