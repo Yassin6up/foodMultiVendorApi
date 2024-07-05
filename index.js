@@ -407,8 +407,6 @@ socket.on('locationUpdate', (location, id) => {
     SELECT id, latitude, longitude, car_type , socket_id 
     FROM riders
     WHERE socket_id != "" 
-    AND latitude != '' 
-    AND longitude != ''
     `;
 
     db.query(query, (err, results) => {
