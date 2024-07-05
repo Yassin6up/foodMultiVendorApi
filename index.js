@@ -499,26 +499,19 @@ db.query(updateQuery, updateValues, (err, result) => {
         if (err) {
           console.error('Error updating rider status:', err);
         } else {
-          socket.emit("acceptedOrder", { orderId, updateState, order: updatedOrder });
-          console.log(`Rider ${riderId} status updated to offline`);
+           let text = "لقد تم قبول الطلب رقم " + orderId;
+            const query = 'INSERT INTO notification (storeId, text) VALUES (?,?)';
+            const values = [updatedOrder.storeId, text];
+          
+            db.query(query, values, (error, results) => {
+              if (error) {
+                return res.status(500).send({ error: 'Database error: ' + error });
+              }
+             socket.emit("acceptedOrder", { orderId, updateState, order: updatedOrder });
+              console.log(`Rider ${riderId} status updated to offline`);
+            });
         }
-      });
-
-      let text = "لقد تم قبول الطلب رقم " + orderId;
-      // SQL query to insert into notifications table
-      const sql = 'INSERT INTO notification (text, storeId) VALUES (?, ?)';
-      const values = [text, storeId];
-
-      // Execute the query with the values from req.body
-      db.query(sql, values, (err, result) => {
-        if (err) {
-          console.error('Error inserting notification:', err);
-          return;
-        }
-
-        // Return the ID of the inserted notification
-        StoreSocket.emit('new_notification', { id: result.insertId, text, storeId, isRead: false });
-      });
+      })
     }
     
     
