@@ -54,7 +54,7 @@ StoreSocket.on('connection', (socket) => {
   // Emit riders' locations to the client
 const sendRidersLocations = () => {
   const query = `
-    SELECT id, latitude, longitude, car_type 
+    SELECT id, latitude, longitude, car_type , socket_id 
     FROM riders
     WHERE socket_id != "" 
     AND latitude != '' 
@@ -248,12 +248,12 @@ const fetchOrdersQuery = `
         const distance = calculateDistance(riderLocation, orderLocation);
 
         if (order.carType) {
-          if (distance <= 500000000000000000000000000000000 && order.carType === riderCarType && distance < minDistance) {
+          if (distance <= 500000 && order.carType === riderCarType && distance < minDistance) {
             closestOrder = order;
             minDistance = distance;
           }
         } else {
-          if (distance <= 500000000000000000000000000000000 && (riderCarType === 'bike' || riderCarType === 'car') && distance < minDistance) {
+          if (distance <= 500000 && (riderCarType === 'bike' || riderCarType === 'car') && distance < minDistance) {
             closestOrder = order;
             minDistance = distance;
           }
