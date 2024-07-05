@@ -327,13 +327,13 @@ const fetchOrdersQuery = `
             // Add orderId to rejected orders list for this rider
             rejectedOrders[rider.id].push(orderId);
 
-            const decrementBalanceQuery = 'UPDATE riders SET balance = balance - 10 WHERE id = ?';
-            db.query(decrementBalanceQuery, [rider.id], (err) => {
-              if (err) {
-                console.error('Error decrementing rider balance:', err);
-                socket.emit('error', { message: 'Error decrementing rider balance', error: err });
-                return;
-              }
+            // const decrementBalanceQuery = 'UPDATE riders SET balance = balance - 10 WHERE id = ?';
+            // db.query(decrementBalanceQuery, [rider.id], (err) => {
+              // if (err) {
+              //   console.error('Error decrementing rider balance:', err);
+              //   socket.emit('error', { message: 'Error decrementing rider balance', error: err });
+              //   return;
+              // }
 
               // Mark rider as available
               const markRiderAvailableQuery = 'UPDATE riders SET online = TRUE WHERE id = ?';
@@ -349,7 +349,7 @@ const fetchOrdersQuery = `
                 // Fetch and assign new order
                 fetchAndAssignOrder();
               });
-            });
+            // });
           });
         });
 
