@@ -404,8 +404,11 @@ socket.on('locationUpdate', (location, id) => {
   // Emit riders' locations to the client
   const sendRidersLocations = () => {
     const query = `
-      SELECT id, latitude, longitude , car_type FROM riders
-      WHERE socket_id IS NOT NULL
+    SELECT id, latitude, longitude, car_type , socket_id 
+    FROM riders
+    WHERE socket_id != "" 
+    AND latitude != '' 
+    AND longitude != ''
     `;
 
     db.query(query, (err, results) => {
@@ -414,7 +417,7 @@ socket.on('locationUpdate', (location, id) => {
         return;
       }
       socket.emit('ridersLocations', results);
-        StoreSocket.emit("ridersLocations" , results)
+      StoreSocket.emit("ridersLocations" , results)
     });
   };
 
