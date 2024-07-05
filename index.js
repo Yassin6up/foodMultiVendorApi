@@ -193,6 +193,8 @@ riderSocket.on('connection', (socket) => {
 
         // Function to fetch and assign order
 const fetchAndAssignOrder = () => {
+  let orderAssigned = false; // Flag to track if an order has been assigned
+
   // Check rider's online status and balance
   const checkRiderStatusQuery = 'SELECT online, balance FROM riders WHERE id = ?';
   db.query(checkRiderStatusQuery, [rider.id], (err, results) => {
@@ -209,7 +211,7 @@ const fetchAndAssignOrder = () => {
 
     const riderStatus = results[0];
 
-    if (riderStatus.online == false) {
+    if (!riderStatus.online) {
       riderSocket.to(rider.socket_id).emit('error', { message: 'Rider is not online' });
       return;
     }
@@ -221,15 +223,15 @@ const fetchAndAssignOrder = () => {
 
     // Fetch orders if the rider is online and has sufficient balance
     const excludedOrderIds = rejectedOrders[rider.id].length > 0 ? rejectedOrders[rider.id].join(',') : '';
-const fetchOrdersQuery = `
-    SELECT * FROM orders 
-    WHERE orderStatus = "loading" 
-    AND (riderId IS NULL OR riderId = ?)
-    AND riderIdAlt != ?
-    ${excludedOrderIds && excludedOrderIds.length ? `AND id NOT IN (${excludedOrderIds.join(',')})` : ''}
-`;
+    const fetchOrdersQuery = `
+      SELECT * FROM orders 
+      WHERE orderStatus = "loading" 
+      AND (riderId IS NULL OR riderId = ?)
+      AND riderIdAlt != ?
+      ${excludedOrderIds && excludedOrderIds.length ? `AND id NOT IN (${excludedOrderIds})` : ''}
+    `;
 
-    db.query(fetchOrdersQuery, [rider.id , rider.id], (err, orders) => {
+    db.query(fetchOrdersQuery, [rider.id, rider.id], (err, orders) => {
       if (err) {
         console.error('Error fetching orders:', err);
         socket.emit('error', { message: 'Error fetching orders', error: err });
@@ -260,7 +262,7 @@ const fetchOrdersQuery = `
         }
       });
 
-      if (closestOrder) {
+      if (closestOrder && !orderAssigned) {
         // Mark rider as busy
         const markRiderBusyQuery = 'UPDATE riders SET online = FALSE WHERE id = ?';
         db.query(markRiderBusyQuery, [rider.id], (err) => {
@@ -281,12 +283,15 @@ const fetchOrdersQuery = `
 
             riderSocket.to(rider.socket_id).emit('newOrder', closestOrder);
             console.log(`Notified rider ${rider.id} about new order ${closestOrder.id}`);
+
+            orderAssigned = true; // Set flag to true after assigning the order
           });
         });
       }
     });
   });
 };
+
 
         // Initial fetch and assign order
         fetchAndAssignOrder();
