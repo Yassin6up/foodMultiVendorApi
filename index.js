@@ -248,12 +248,12 @@ const fetchOrdersQuery = `
         const distance = calculateDistance(riderLocation, orderLocation);
 
         if (order.carType) {
-          if (distance <= 5000 && order.carType === riderCarType && distance < minDistance) {
+          if (distance <= 500000000000 && order.carType === riderCarType && distance < minDistance) {
             closestOrder = order;
             minDistance = distance;
           }
         } else {
-          if (distance <= 5000 && (riderCarType === 'bike' || riderCarType === 'car') && distance < minDistance) {
+          if (distance <= 500000000000 && (riderCarType === 'bike' || riderCarType === 'car') && distance < minDistance) {
             closestOrder = order;
             minDistance = distance;
           }
