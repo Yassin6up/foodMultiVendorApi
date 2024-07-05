@@ -52,22 +52,28 @@ StoreSocket.on('connection', (socket) => {
   console.log('A client connected to StoreSocket');
 
   // Emit riders' locations to the client
-  const sendRidersLocations = () => {
- const query = `
+const sendRidersLocations = () => {
+  const query = `
     SELECT id, latitude, longitude, car_type 
     FROM riders
-    WHERE socket_id IS NOT NULL 
-    AND latitude IS NOT NULL AND latitude != '' 
-    AND longitude IS NOT NULL AND longitude != ''
+    WHERE socket_id != "" 
+    AND latitude != '' 
+    AND longitude != ''
   `;
-    db.query(query, (err, results) => {
-      if (err) {
-        console.error('Error fetching riders locations:', err);
-        return;
-      }
-        socket.emit("ridersLocations" , results)
-    });
-  };
+
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching riders locations:', err);
+      return;
+    }
+
+    if (results.length > 0) {
+      socket.emit("ridersLocations", results);
+    } else {
+      console.log('No riders locations to send.');
+    }
+  });
+};
 
   // Send initial data
   sendRidersLocations();
