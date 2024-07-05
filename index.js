@@ -733,7 +733,7 @@ db.query(updateQuery, updateValues, (err, result) => {
 
    
 
-          console.log(`Location updated for rider ${riderId}:`, location);
+          console.log(`Location updated for rider ${socket.id}:`, location);
     });
   })
 
