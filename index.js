@@ -697,6 +697,19 @@ db.query(updateQuery, updateValues, (err, result) => {
   // Handle client disconnect
   socket.on('disconnect', () => {
     console.log('Client disconnected', socket.id);
+     const query = `
+      INSERT INTO riders (socket_id, latitude, longitude)
+      VALUES (?, ?, ?)
+      ON DUPLICATE KEY UPDATE latitude = VALUES(latitude), longitude = VALUES(longitude)
+    `;
+
+    db.query(query, [socket.id, null, null], (err, results) => {
+      if (err) {
+        console.error('Error updating location:', err);
+        return;
+      }
+     
+  
     // Emit disconnected event to handle clean-up if needed
      const query = 'UPDATE riders SET socket_id = ? WHERE socket_id = ?';
           db.query(query, [null, socket.id], (err, result) => {
@@ -707,11 +720,14 @@ db.query(updateQuery, updateValues, (err, result) => {
             if (result.affectedRows === 0) {
                 socket.on('error' , "Rider not found")
             }
-            socket.emit("updateSocketId" , "socket updated") 
+             io.emit('clientDisconnected', socket.id);
           });
 
 
-    io.emit('clientDisconnected', socket.id);
+   
+
+          console.log(`Location updated for rider ${riderId}:`, location);
+    });
   })
 
   // Handle errors
