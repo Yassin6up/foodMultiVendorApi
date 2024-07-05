@@ -709,7 +709,7 @@ db.query(updateQuery, updateValues, (err, result) => {
       ON DUPLICATE KEY UPDATE latitude = VALUES(latitude), longitude = VALUES(longitude)
     `;
 
-    db.query(query, [socket.id, null, null], (err, results) => {
+    db.query(query, [socket.id, "", ""], (err, results) => {
       if (err) {
         console.error('Error updating location:', err);
         return;
