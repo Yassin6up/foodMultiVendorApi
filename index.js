@@ -767,7 +767,7 @@ db.query(updateQuery, updateValues, (err, result) => {
 
    
 
-          console.log(`Location updated for rider ${socket.id}:`, location? location : "location not found");
+          console.log(`Location updated for rider ${socket.id}:`, location || {});
     });
   })
 
