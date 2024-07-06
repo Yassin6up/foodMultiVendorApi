@@ -263,28 +263,57 @@ const fetchAndAssignOrder = () => {
       });
 
       if (closestOrder && !orderAssigned) {
-        // Mark rider as busy
-        const markRiderBusyQuery = 'UPDATE riders SET online = FALSE WHERE id = ?';
-        db.query(markRiderBusyQuery, [rider.id], (err) => {
+        db.beginTransaction((err) => {
           if (err) {
-            console.error('Error marking rider as busy:', err);
-            socket.emit('error', { message: 'Error marking rider as busy', error: err });
+            console.error('Error starting transaction:', err);
+            socket.emit('error', { message: 'Error starting transaction', error: err });
             return;
           }
 
-          // Update the order with the riderId if it is currently null
-          const updateOrderRiderIdQuery = 'UPDATE orders SET riderId = ? WHERE id = ? AND riderId IS NULL';
-          db.query(updateOrderRiderIdQuery, [rider.id, closestOrder.id], (err) => {
+          // Mark rider as busy
+          const markRiderBusyQuery = 'UPDATE riders SET online = FALSE WHERE id = ?';
+          db.query(markRiderBusyQuery, [rider.id], (err) => {
             if (err) {
-              console.error('Error updating order with riderId:', err);
-              socket.emit('error', { message: 'Error updating order with riderId', error: err });
+              console.error('Error marking rider as busy:', err);
+              db.rollback(() => {
+                socket.emit('error', { message: 'Error marking rider as busy', error: err });
+              });
               return;
             }
 
-            riderSocket.to(rider.socket_id).emit('newOrder', closestOrder);
-            console.log(`Notified rider ${rider.id} about new order ${closestOrder.id}`);
+            // Update the order with the riderId if it is currently null
+            const updateOrderRiderIdQuery = 'UPDATE orders SET riderId = ? WHERE id = ? AND riderId IS NULL';
+            db.query(updateOrderRiderIdQuery, [rider.id, closestOrder.id], (err, result) => {
+              if (err) {
+                console.error('Error updating order with riderId:', err);
+                db.rollback(() => {
+                  socket.emit('error', { message: 'Error updating order with riderId', error: err });
+                });
+                return;
+              }
 
-            orderAssigned = true; // Set flag to true after assigning the order
+              if (result.affectedRows === 0) {
+                db.rollback(() => {
+                  console.log('Order already assigned to another rider.');
+                });
+                return;
+              }
+
+              db.commit((err) => {
+                if (err) {
+                  console.error('Error committing transaction:', err);
+                  db.rollback(() => {
+                    socket.emit('error', { message: 'Error committing transaction', error: err });
+                  });
+                  return;
+                }
+
+                riderSocket.to(rider.socket_id).emit('newOrder', closestOrder);
+                console.log(`Notified rider ${rider.id} about new order ${closestOrder.id}`);
+
+                orderAssigned = true; // Set flag to true after assigning the order
+              });
+            });
           });
         });
       }
