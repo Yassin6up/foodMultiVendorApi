@@ -244,7 +244,7 @@ const fetchAndAssignOrder = () => {
         return;
       }
       console.log("order not rejected in rider :" , rider.id)
-
+      console.log("orders : " , orders)
       let closestOrder = null;
       let minDistance = Infinity;
 
