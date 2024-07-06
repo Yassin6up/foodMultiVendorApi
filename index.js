@@ -194,7 +194,7 @@ riderSocket.on('connection', (socket) => {
         // Function to fetch and assign order
 const fetchAndAssignOrder = () => {
   let orderAssigned = false; // Flag to track if an order has been assigned
-
+  console.log("start fetching order")
   // Check rider's online status and balance
   const checkRiderStatusQuery = 'SELECT online, balance FROM riders WHERE id = ?';
   db.query(checkRiderStatusQuery, [rider.id], (err, results) => {
@@ -220,6 +220,8 @@ const fetchAndAssignOrder = () => {
       riderSocket.to(rider.socket_id).emit('error', { message: 'Rider\'s balance is too low' });
       return;
     }
+      console.log("rider is good :" , rider.id)
+
 
     // Fetch orders if the rider is online and has sufficient balance
     const excludedOrderIds = rejectedOrders[rider.id].length > 0 ? rejectedOrders[rider.id].join(',') : '';
@@ -241,6 +243,7 @@ const fetchAndAssignOrder = () => {
       if (orders.length === 0) {
         return;
       }
+      console.log("order not rejected in rider :" , rider.id)
 
       let closestOrder = null;
       let minDistance = Infinity;
