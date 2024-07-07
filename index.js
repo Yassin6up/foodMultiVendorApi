@@ -748,39 +748,44 @@ db.query(updateQuery, updateValues, (err, result) => {
 
   // Handle client disconnect
   socket.on('disconnect', () => {
-    console.log('Client disconnected', socket.id);
-     const query = `
-      INSERT INTO riders (socket_id, latitude, longitude)
-      VALUES (?, ?, ?)
-      ON DUPLICATE KEY UPDATE latitude = VALUES(latitude), longitude = VALUES(longitude)
-    `;
+   console.log('Client disconnected', socket.id);
 
-    db.query(query, [socket.id, "", ""], (err, results) => {
-      if (err) {
-        console.error('Error updating location:', err);
-        return;
-      }
-     
-  
-    // Emit disconnected event to handle clean-up if needed
-     const query = 'UPDATE riders SET socket_id = ? WHERE socket_id = ?';
-          db.query(query, [null, socket.id], (err, result) => {
-            if (err) {
-              console.error('Error updating socket_id:', err);
-                socket.on('error' , err)
-            }
-            if (result.affectedRows === 0) {
-                socket.on('error' , "Rider not found")
-            }
-             io.emit('clientDisconnected', socket.id);
-          });
+const query = `
+  UPDATE riders
+  SET latitude = ?, longitude = ?
+  WHERE socket_id = ?
+`;
 
+db.query(query, ["", "", socket.id], (err, results) => {
+  if (err) {
+    console.error('Error updating location:', err);
+    // Handle error appropriately
+    return;
+  }
 
-   
+  // Emit disconnected event to handle clean-up if needed
+  const updateSocketIdQuery = 'UPDATE riders SET socket_id = NULL WHERE socket_id = ?';
+  db.query(updateSocketIdQuery, [socket.id], (err, result) => {
+    if (err) {
+      console.error('Error updating socket_id:', err);
+      // Handle error appropriately
+      socket.emit('error', err);
+      return;
+    }
+    if (result.affectedRows === 0) {
+      console.log('Rider not found');
+      socket.emit('error', 'Rider not found');
+      return;
+    }
 
-          console.log(`Location updated for desconnect rider ${socket.id}`);
-    });
+    // Emit event to notify clients or perform any other clean-up
+    io.emit('clientDisconnected', socket.id);
+    console.log(`Location updated for disconnected rider ${socket.id}`);
+  });
+})
+
   })
+  
 
   // Handle errors
   socket.on('error', (error) => {
