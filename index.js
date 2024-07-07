@@ -253,18 +253,20 @@ const fetchAndAssignOrder = () => {
         const distance = calculateDistance(riderLocation, orderLocation);
 
         if (order.carType) {
-          if (distance <= 500000 && order.carType === riderCarType && distance < minDistance) {
+          if (distance <= 5000000 && order.carType === riderCarType && distance < minDistance) {
             closestOrder = order;
             minDistance = distance;
           }
         } else {
-          if (distance <= 500000 && (riderCarType === 'bike' || riderCarType === 'car') && distance < minDistance) {
+          if (distance <= 5000000 && (riderCarType === 'bike' || riderCarType === 'car') && distance < minDistance) {
             closestOrder = order;
             minDistance = distance;
           }
         }
       });
 
+      console.log("colsest order : " , closestOrder)
+      console.log("asigned order : " , orderAssigned)
       if (closestOrder && !orderAssigned) {
         db.beginTransaction((err) => {
           if (err) {
@@ -312,7 +314,6 @@ const fetchAndAssignOrder = () => {
                 }
 
                 riderSocket.to(rider.socket_id).emit('newOrder', closestOrder);
-                console.log(`Notified rider ${rider.id} about new order ${closestOrder.id}`);
 
                 orderAssigned = true; // Set flag to true after assigning the order
               });
