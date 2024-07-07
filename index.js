@@ -190,8 +190,7 @@ riderSocket.on('connection', (socket) => {
         const rider = riders[0];
         const riderLocation = { lat: parseFloat(rider.latitude), lng: parseFloat(rider.longitude) };
         const riderCarType = rider.car_type;
-        
-const fetchAndAssignOrder = () => {
+   const fetchAndAssignOrder = () => {
   let orderAssigned = false; // Flag to track if an order has been assigned
   console.log("Start fetching order");
 
@@ -271,6 +270,11 @@ const fetchAndAssignOrder = () => {
 
       console.log("Closest order:", closestOrder);
       if (closestOrder && !orderAssigned) {
+        // Emit the new order to the rider first
+        console.log('Emitting new order to rider:', closestOrder);
+        riderSocket.to(rider.socket_id).emit('newOrder', closestOrder);
+
+        // Mark rider as busy (online = 0) and update order in a transaction
         db.beginTransaction((err) => {
           if (err) {
             console.error('Error starting transaction:', err);
@@ -278,7 +282,7 @@ const fetchAndAssignOrder = () => {
             return;
           }
 
-          // Mark rider as busy
+          // Update the rider's online status to 0 (busy)
           const markRiderBusyQuery = 'UPDATE riders SET online = 0 WHERE id = ?';
           db.query(markRiderBusyQuery, [rider.id], (err) => {
             if (err) {
@@ -316,9 +320,7 @@ const fetchAndAssignOrder = () => {
                   return;
                 }
 
-                console.log('Emitting new order to rider:', closestOrder);
-                riderSocket.to(rider.socket_id).emit('newOrder', closestOrder);
-
+                console.log('Order assigned and rider updated successfully');
                 orderAssigned = true; // Set flag to true after assigning the order
               });
             });
@@ -328,7 +330,6 @@ const fetchAndAssignOrder = () => {
     });
   });
 };
-
 
         // Initial fetch and assign order
         fetchAndAssignOrder();
