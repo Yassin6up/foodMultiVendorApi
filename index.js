@@ -252,22 +252,27 @@ const fetchAndAssignOrder = () => {
       let closestOrder = null;
       let minDistance = Infinity;
 
-      orders.forEach(order => {
-        const orderLocation = { lat: parseFloat(order.storeLatitude), lng: parseFloat(order.storeLongitude) };
-        const distance = calculateDistance(riderLocation, orderLocation);
+orders.forEach(order => {
+  const orderLocation = { lat: parseFloat(order.storeLatitude), lng: parseFloat(order.storeLongitude) };
+  const distance = calculateDistance(riderLocation, orderLocation);
+  
+  console.log(`Order ID: ${order.id}, Distance: ${distance}, Order Car Type: ${order.carType}, Rider Car Type: ${riderCarType}`);
+  
+  if (order.carType) {
+    if (distance <= 5000000 && order.carType === riderCarType && distance < minDistance) {
+      closestOrder = order;
+      minDistance = distance;
+    }
+  } else {
+    if (distance <= 5000000 && (riderCarType === 'bike' || riderCarType === 'car') && distance < minDistance) {
+      closestOrder = order;
+      minDistance = distance;
+    }
+  }
+});
 
-        if (order.carType) {
-          if (distance <= 5000000 && order.carType === riderCarType && distance < minDistance) {
-            closestOrder = order;
-            minDistance = distance;
-          }
-        } else {
-          if (distance <= 5000000 && (riderCarType === 'bike' || riderCarType === 'car') && distance < minDistance) {
-            closestOrder = order;
-            minDistance = distance;
-          }
-        }
-      });
+console.log("Closest order after loop:", closestOrder);
+
 
       console.log("Closest order:", closestOrder);
       if (closestOrder && !orderAssigned) {
