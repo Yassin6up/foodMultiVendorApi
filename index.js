@@ -191,10 +191,10 @@ riderSocket.on('connection', (socket) => {
         const riderLocation = { lat: parseFloat(rider.latitude), lng: parseFloat(rider.longitude) };
         const riderCarType = rider.car_type;
 
-        // Function to fetch and assign order
-const fetchAndAssignOrder = () => {
+ const fetchAndAssignOrder = () => {
   let orderAssigned = false; // Flag to track if an order has been assigned
-  console.log("start fetching order")
+  console.log("Start fetching order");
+
   // Check rider's online status and balance
   const checkRiderStatusQuery = 'SELECT online, balance FROM riders WHERE id = ?';
   db.query(checkRiderStatusQuery, [rider.id], (err, results) => {
@@ -212,16 +212,18 @@ const fetchAndAssignOrder = () => {
     const riderStatus = results[0];
 
     if (!riderStatus.online) {
+      console.error('Rider is not online');
       riderSocket.to(rider.socket_id).emit('error', { message: 'Rider is not online' });
       return;
     }
 
     if (riderStatus.balance <= 5) {
+      console.error('Rider\'s balance is too low');
       riderSocket.to(rider.socket_id).emit('error', { message: 'Rider\'s balance is too low' });
       return;
     }
-      console.log("rider is good :" , rider.id)
 
+    console.log("Rider is good:", rider.id);
 
     // Fetch orders if the rider is online and has sufficient balance
     const excludedOrderIds = rejectedOrders[rider.id].length > 0 ? rejectedOrders[rider.id].join(',') : '';
@@ -241,10 +243,12 @@ const fetchAndAssignOrder = () => {
       }
 
       if (orders.length === 0) {
+        console.log('No available orders');
         return;
       }
-      console.log("order not rejected in rider :" , rider.id)
-      console.log("orders : " , orders)
+
+      console.log("Order not rejected for rider:", rider.id);
+      console.log("Orders:", orders);
       let closestOrder = null;
       let minDistance = Infinity;
 
@@ -265,8 +269,8 @@ const fetchAndAssignOrder = () => {
         }
       });
 
-      console.log("colsest order : " , closestOrder)
-      console.log("asigned order : " , orderAssigned)
+      console.log("Closest order:", closestOrder);
+      console.log("Order assigned:", orderAssigned);
       if (closestOrder && !orderAssigned) {
         db.beginTransaction((err) => {
           if (err) {
@@ -313,6 +317,7 @@ const fetchAndAssignOrder = () => {
                   return;
                 }
 
+                console.log('Emitting new order to rider:', closestOrder);
                 riderSocket.to(rider.socket_id).emit('newOrder', closestOrder);
 
                 orderAssigned = true; // Set flag to true after assigning the order
@@ -324,7 +329,6 @@ const fetchAndAssignOrder = () => {
     });
   });
 };
-
 
         // Initial fetch and assign order
         fetchAndAssignOrder();
