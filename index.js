@@ -273,10 +273,6 @@ const fetchAndAssignOrder = () => {
 
       console.log("Closest order:", closestOrder);
       if (closestOrder && !orderAssigned) {
-        // Emit the new order to the rider first
-        console.log('Emitting new order to rider:', closestOrder);
-        riderSocket.to(rider.socket_id).emit('newOrder', closestOrder);
-
         // Mark rider as busy (online = 0) and update order in a transaction
         db.beginTransaction((err) => {
           if (err) {
@@ -325,6 +321,10 @@ const fetchAndAssignOrder = () => {
 
                 console.log('Order assigned and rider updated successfully');
                 orderAssigned = true; // Set flag to true after assigning the order
+
+                // Emit the new order to the rider after successfully updating the order
+                console.log('Emitting new order to rider:', closestOrder);
+                riderSocket.to(rider.socket_id).emit('newOrder', closestOrder);
               });
             });
           });
@@ -333,6 +333,7 @@ const fetchAndAssignOrder = () => {
     });
   });
 };
+
 
         // Initial fetch and assign order
         fetchAndAssignOrder();
