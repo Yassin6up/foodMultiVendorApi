@@ -256,7 +256,10 @@ const fetchAndAssignOrder = () => {
       orders.forEach(order => {
         const orderLocation = { lat: parseFloat(order.storeLatitude), lng: parseFloat(order.storeLongitude) };
         const distance = calculateDistance(riderLocation, orderLocation);
-
+         if (isNaN(distance)) {
+            console.warn(`Invalid distance for Order ID ${order.id}. Skipping order.`);
+            return; // Skip this order if distance calculation fails
+          }
         console.log(`Order ID: ${order.id}, Distance: ${distance}, Order Car Type: ${order.carType}, Rider Car Type: ${riderCarType}`);
 
         // Check if the order matches criteria and is closer than previous orders
