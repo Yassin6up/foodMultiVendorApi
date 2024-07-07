@@ -190,8 +190,8 @@ riderSocket.on('connection', (socket) => {
         const rider = riders[0];
         const riderLocation = { lat: parseFloat(rider.latitude), lng: parseFloat(rider.longitude) };
         const riderCarType = rider.car_type;
-
- const fetchAndAssignOrder = () => {
+        
+const fetchAndAssignOrder = () => {
   let orderAssigned = false; // Flag to track if an order has been assigned
   console.log("Start fetching order");
 
@@ -279,7 +279,7 @@ riderSocket.on('connection', (socket) => {
           }
 
           // Mark rider as busy
-          const markRiderBusyQuery = 'UPDATE riders SET online = FALSE WHERE id = ?';
+          const markRiderBusyQuery = 'UPDATE riders SET online = 0 WHERE id = ?';
           db.query(markRiderBusyQuery, [rider.id], (err) => {
             if (err) {
               console.error('Error marking rider as busy:', err);
@@ -328,6 +328,7 @@ riderSocket.on('connection', (socket) => {
     });
   });
 };
+
 
         // Initial fetch and assign order
         fetchAndAssignOrder();
