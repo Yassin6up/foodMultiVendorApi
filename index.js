@@ -247,35 +247,39 @@ const fetchAndAssignOrder = () => {
         return;
       }
 
-      console.log("Order not rejected for rider:", rider.id);
+      console.log("Orders fetched for rider:", rider.id);
       console.log("Orders:", orders);
+
       let closestOrder = null;
       let minDistance = Infinity;
 
-orders.forEach(order => {
-  const orderLocation = { lat: parseFloat(order.storeLatitude), lng: parseFloat(order.storeLongitude) };
-  const distance = calculateDistance(riderLocation, orderLocation);
-  
-  console.log(`Order ID: ${order.id}, Distance: ${distance}, Order Car Type: ${order.carType}, Rider Car Type: ${riderCarType}`);
-  
-  if (order.carType) {
-    if (distance <= 5000000 && order.carType === riderCarType && distance < minDistance) {
-      closestOrder = order;
-      minDistance = distance;
-    }
-  } else {
-    if (distance <= 5000000 && (riderCarType === 'bike' || riderCarType === 'car') && distance < minDistance) {
-      closestOrder = order;
-      minDistance = distance;
-    }
-  }
-});
+      orders.forEach(order => {
+        const orderLocation = { lat: parseFloat(order.storeLatitude), lng: parseFloat(order.storeLongitude) };
+        const distance = calculateDistance(riderLocation, orderLocation);
 
-console.log("Closest order after loop:", closestOrder);
+        console.log(`Order ID: ${order.id}, Distance: ${distance}, Order Car Type: ${order.carType}, Rider Car Type: ${riderCarType}`);
 
+        // Check if the order matches criteria and is closer than previous orders
+        if (order.carType) {
+          if (distance <= 5000000 && order.carType === riderCarType && distance < minDistance) {
+            closestOrder = order;
+            minDistance = distance;
+          }
+        } else {
+          if (distance <= 5000000 && (riderCarType === 'bike' || riderCarType === 'car') && distance < minDistance) {
+            closestOrder = order;
+            minDistance = distance;
+          }
+        }
+      });
 
       console.log("Closest order:", closestOrder);
+
+      // Process the closest order if found and not already assigned
       if (closestOrder && !orderAssigned) {
+        // Select one rider for the closest order (example: first rider from the query)
+        const selectedRider = riders[0]; // Example: Modify this based on your logic to select one rider
+
         db.beginTransaction((err) => {
           if (err) {
             console.error('Error starting transaction:', err);
@@ -284,7 +288,7 @@ console.log("Closest order after loop:", closestOrder);
           }
 
           const markRiderBusyQuery = 'UPDATE riders SET online = 0 WHERE id = ?';
-          db.query(markRiderBusyQuery, [rider.id], (err) => {
+          db.query(markRiderBusyQuery, [selectedRider.id], (err) => {
             if (err) {
               console.error('Error marking rider as busy:', err);
               db.rollback(() => {
@@ -294,7 +298,7 @@ console.log("Closest order after loop:", closestOrder);
             }
 
             const updateOrderRiderIdQuery = 'UPDATE orders SET riderId = ? WHERE id = ? AND riderId IS NULL';
-            db.query(updateOrderRiderIdQuery, [rider.id, closestOrder.id], (err, result) => {
+            db.query(updateOrderRiderIdQuery, [selectedRider.id, closestOrder.id], (err, result) => {
               if (err) {
                 console.error('Error updating order with riderId:', err);
                 db.rollback(() => {
@@ -309,7 +313,8 @@ console.log("Closest order after loop:", closestOrder);
                 });
                 return;
               }
-                console.log('Rider is updated');
+
+              console.log('Rider is updated');
               
               db.commit((err) => {
                 if (err) {
@@ -321,9 +326,9 @@ console.log("Closest order after loop:", closestOrder);
                 }
 
                 // Ensure riderSocket is defined and connected
-                if (riderSocket && rider.socket_id) {
+                if (riderSocket && selectedRider.socket_id) {
                   console.log('Emitting new order to rider:', closestOrder);
-                  riderSocket.to(rider.socket_id).emit('newOrder', closestOrder);
+                  riderSocket.to(selectedRider.socket_id).emit('newOrder', closestOrder);
                 } else {
                   console.error('Rider socket is not connected or socket ID is missing');
                 }
@@ -339,6 +344,7 @@ console.log("Closest order after loop:", closestOrder);
     });
   });
 };
+
 
 
 
