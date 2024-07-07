@@ -226,13 +226,13 @@ riderSocket.on('connection', (socket) => {
     console.log("Rider is good:", rider.id);
 
     // Fetch orders if the rider is online and has sufficient balance
-    const excludedOrderIds = rejectedOrders[rider.id].length > 0 ? rejectedOrders[rider.id].join(',') : '';
+    const excludedOrderIds = rejectedOrders[rider.id] ? rejectedOrders[rider.id].join(',') : '';
     const fetchOrdersQuery = `
       SELECT * FROM orders 
       WHERE orderStatus = "loading" 
       AND (riderId IS NULL OR riderId = ?)
       AND riderIdAlt != ?
-      ${excludedOrderIds && excludedOrderIds.length ? `AND id NOT IN (${excludedOrderIds})` : ''}
+      ${excludedOrderIds ? `AND id NOT IN (${excludedOrderIds})` : ''}
     `;
 
     db.query(fetchOrdersQuery, [rider.id, rider.id], (err, orders) => {
@@ -270,7 +270,6 @@ riderSocket.on('connection', (socket) => {
       });
 
       console.log("Closest order:", closestOrder);
-      console.log("Order assigned:", orderAssigned);
       if (closestOrder && !orderAssigned) {
         db.beginTransaction((err) => {
           if (err) {
