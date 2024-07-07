@@ -189,8 +189,11 @@ riderSocket.on('connection', (socket) => {
 
         const rider = riders[0];
         const riderLocation = { lat: parseFloat(rider.latitude), lng: parseFloat(rider.longitude) };
+     
         const riderCarType = rider.car_type;
-   const fetchAndAssignOrder = () => {
+ 
+        
+const fetchAndAssignOrder = () => {
   let orderAssigned = false; // Flag to track if an order has been assigned
   console.log("Start fetching order");
 
