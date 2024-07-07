@@ -302,30 +302,32 @@ const fetchAndAssignOrder = () => {
                 });
                 return;
               }
-
+              
               if (result.affectedRows === 0) {
                 db.rollback(() => {
                   console.log('Order already assigned to another rider.');
                 });
                 return;
               }
-
-              db.commit((err) => {
-                if (err) {
-                  console.error('Error committing transaction:', err);
-                  db.rollback(() => {
-                    socket.emit('error', { message: 'Error committing transaction', error: err });
-                  });
-                  return;
-                }
-
-                console.log('Order assigned and rider updated successfully');
-                orderAssigned = true; // Set flag to true after assigning the order
+                console.log('rider is updated')
+              
+              // db.commit((err) => {
+              //   if (err) {
+              //     console.error('Error committing transaction:', err);
+              //     db.rollback(() => {
+              //       socket.emit('error', { message: 'Error committing transaction', error: err });
+              //     });
+              //     return;
+              //   }
 
                 // Emit the new order to the rider after successfully updating the order
                 console.log('Emitting new order to rider:', closestOrder);
                 riderSocket.to(rider.socket_id).emit('newOrder', closestOrder);
-              });
+                
+                console.log('Order assigned and rider updated successfully');
+                orderAssigned = true; // Set flag to true after assigning the order
+
+              // });
             });
           });
         });
