@@ -194,10 +194,9 @@ riderSocket.on('connection', (socket) => {
  
         
 const fetchAndAssignOrder = () => {
-  let orderAssigned = false; // Flag to track if an order has been assigned
+  let orderAssigned = false; 
   console.log("Start fetching order");
 
-  // Check rider's online status and balance
   const checkRiderStatusQuery = 'SELECT online, balance FROM riders WHERE id = ?';
   db.query(checkRiderStatusQuery, [rider.id], (err, results) => {
     if (err) {
@@ -227,12 +226,11 @@ const fetchAndAssignOrder = () => {
 
     console.log("Rider is good:", rider.id);
 
-    // Fetch orders if the rider is online and has sufficient balance
     const excludedOrderIds = rejectedOrders[rider.id] ? rejectedOrders[rider.id].join(',') : '';
     const fetchOrdersQuery = `
       SELECT * FROM orders 
       WHERE orderStatus = "loading" 
-      AND (riderId IS NULL OR riderId = ?)
+      AND (riderId IS NULL OR riderId = ?) 
       AND riderIdAlt != ?
       ${excludedOrderIds ? `AND id NOT IN (${excludedOrderIds})` : ''}
     `;
@@ -273,7 +271,6 @@ const fetchAndAssignOrder = () => {
 
       console.log("Closest order:", closestOrder);
       if (closestOrder && !orderAssigned) {
-        // Mark rider as busy (online = 0) and update order in a transaction
         db.beginTransaction((err) => {
           if (err) {
             console.error('Error starting transaction:', err);
@@ -281,7 +278,6 @@ const fetchAndAssignOrder = () => {
             return;
           }
 
-          // Update the rider's online status to 0 (busy)
           const markRiderBusyQuery = 'UPDATE riders SET online = 0 WHERE id = ?';
           db.query(markRiderBusyQuery, [rider.id], (err) => {
             if (err) {
@@ -292,7 +288,6 @@ const fetchAndAssignOrder = () => {
               return;
             }
 
-            // Update the order with the riderId if it is currently null
             const updateOrderRiderIdQuery = 'UPDATE orders SET riderId = ? WHERE id = ? AND riderId IS NULL';
             db.query(updateOrderRiderIdQuery, [rider.id, closestOrder.id], (err, result) => {
               if (err) {
@@ -309,25 +304,29 @@ const fetchAndAssignOrder = () => {
                 });
                 return;
               }
-                console.log('rider is updated')
+                console.log('Rider is updated');
               
-              // db.commit((err) => {
-              //   if (err) {
-              //     console.error('Error committing transaction:', err);
-              //     db.rollback(() => {
-              //       socket.emit('error', { message: 'Error committing transaction', error: err });
-              //     });
-              //     return;
-              //   }
+              db.commit((err) => {
+                if (err) {
+                  console.error('Error committing transaction:', err);
+                  db.rollback(() => {
+                    socket.emit('error', { message: 'Error committing transaction', error: err });
+                  });
+                  return;
+                }
 
-                // Emit the new order to the rider after successfully updating the order
-                console.log('Emitting new order to rider:', closestOrder);
-                riderSocket.to(rider.socket_id).emit('newOrder', closestOrder);
+                // Ensure riderSocket is defined and connected
+                if (riderSocket && rider.socket_id) {
+                  console.log('Emitting new order to rider:', closestOrder);
+                  riderSocket.to(rider.socket_id).emit('newOrder', closestOrder);
+                } else {
+                  console.error('Rider socket is not connected or socket ID is missing');
+                }
                 
                 console.log('Order assigned and rider updated successfully');
+                
                 orderAssigned = true; // Set flag to true after assigning the order
-
-              // });
+              });
             });
           });
         });
@@ -335,6 +334,7 @@ const fetchAndAssignOrder = () => {
     });
   });
 };
+
 
 
         // Initial fetch and assign order
