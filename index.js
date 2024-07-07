@@ -423,25 +423,27 @@ riderSocket.on('connection', (socket) => {
   
   
 socket.on('locationUpdate', (location, id) => {
-    const riderId = id;
-    const { latitude, longitude } = location;
+  const riderId = id;
+  const { latitude, longitude } = location;
 
-    const query = `
-      INSERT INTO riders (id, latitude, longitude)
-      VALUES (?, ?, ?)
-      ON DUPLICATE KEY UPDATE latitude = VALUES(latitude), longitude = VALUES(longitude)
-    `;
+  const query = `
+    UPDATE riders 
+    SET latitude = ?, longitude = ? 
+    WHERE id = ?
+  `;
 
-    db.query(query, [riderId, latitude, longitude], (err, results) => {
-      if (err) {
-        console.error('Error updating location:', err);
-        return;
-      }
-      socket.emit('locationUpdated' , location)
-      console.log(`Location updated for rider ${riderId}:`, location);
-    });
+  db.query(query, [latitude, longitude, riderId], (err, results) => {
+    if (err) {
+      console.error('Error updating location:', err);
+      socket.emit('error', { message: 'Error updating location', error: err });
+      return;
+    }
+    
+    socket.emit('locationUpdated', location);
+    console.log(`Location updated for rider ${riderId}:`, location);
   });
- 
+});
+
  
   // Emit riders' locations to the client
   const sendRidersLocations = () => {
